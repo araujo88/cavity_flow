@@ -1,7 +1,7 @@
-# 2D Transient Heat Equation for steel plate solver via finite-difference scheme
+# 2D Cavity-flow - explicit finite difference scheme
 # Author: Leonardo Antonio de Araujo
 # E-mail: leonardo.aa88@gmail.com
-# Date: 08/04/2020
+# Date: 20/05/2020
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -34,16 +34,16 @@ def lhs(u,v,nx,ny,dx,dy):
     return dudx**2+dvdy**2+2*dudy*dvdx
 
 # Solves poisson equation
-def poisson_equation(f,nx,ny,dx,dy):
+def poisson(f,nx,ny,dx,dy):
     p = np.zeros((nx,ny))
     for i in range(1,(nx-1)):
         for j in range (1,(ny-1)):
-            p[i,j]=((dy**2)*(p[i+1,j]+p[i-1,j])+(dx**2)*(p[i,j+1]+p[i,j-1])-(dx**2)*(dy**2)*f[i,j])/2*(dx**2+dy**2)
+            p[i,j]=((dy**2)*(p[i+1,j]+p[i-1,j])+(dx**2)*(p[i,j+1]+p[i,j-1])-(dx**2)*(dy**2)*f[i,j])/(2*(dx**2+dy**2))
     return p
 
 # Computes vorticity
 def vort(u,v,nx,ny,dx,dy):
-    dudy = ddy(u,nx,ny,dx)
+    dudy = ddy(u,nx,ny,dy)
     dvdx = ddx(v,nx,ny,dx)
     return dvdx-dudy
 
@@ -99,7 +99,7 @@ Ly = 1 # width
 nx = 20 # number of points in x direction
 ny = 20 # number of points in y direction
 dt = 0.005 # time step
-tf = 2 # final time
+tf = 5 # final time
 max_co = 1 # max Courant number
 
 # Boundary conditions (Dirichlet)
@@ -107,7 +107,7 @@ u0=0; # internal field for u
 v0=0; # internal field for v
 
 u1=0; # bottom boundary condition
-u2=-1; # top boundary condition
+u2=1; # top boundary condition
 u3=0; # right boundary condition
 u4=0; # left boundary condition
 
@@ -116,9 +116,14 @@ v2=0;
 v3=0;
 v4=0;
 
+# Generate 2D mesh
+x = np.linspace(0, Lx, nx, endpoint=True)
+y = np.linspace(0, Ly, ny, endpoint=True)
+X, Y = np.meshgrid(x, y,indexing='ij')
+
 # Computes cell length
-dx = Lx/nx;
-dy = Ly/ny;
+dx = x[1]-x[0];
+dy = y[1]-y[0];
 
 # Maximum number of iterations
 it_max = int(tf/dt)-1
@@ -136,7 +141,6 @@ v = np.zeros((nx,ny,int(tf/dt))) # y-velocity
 w = np.zeros((nx,ny,int(tf/dt))) # vorticity
 psi = np.zeros((nx,ny,int(tf/dt))) # stream-function
 p = np.zeros((nx,ny,int(tf/dt))) # pressure
-f = np.zeros((nx,ny,int(tf/dt))) # LHS of poisson equation for pressure
 
 # Initial condition
 for i in range(0,nx-1):
@@ -147,51 +151,58 @@ for i in range(0,nx-1):
 # Boundary conditions set-up
 boundary_conditions(u[:,:,:],u1,u2,u3,u4,nx,ny)
 boundary_conditions(v[:,:,:],v1,v2,v3,v4,nx,ny)
-
 w[:,:,0] = vort(u[:,:,0],v[:,:,0],nx,ny,dx,dy)
-psi[:,:,0] = poisson_equation(-w[:,:,0],nx,ny,dx,dy)
-f[:,:,0] = lhs(u[:,:,0],v[:,:,0],nx,ny,dx,dy)
-p[:,:,0] = poisson_equation(f[:,:,0],nx,ny,dx,dy)
-
-# Generate 2D mesh
-X = np.linspace(0, Lx, nx, endpoint=True)
-Y = np.linspace(0, Ly, ny, endpoint=True)
-X, Y = np.meshgrid(X, Y,indexing='ij')
-
-# Plot initial conditions
-#plot_contour(X,Y,w,0)
-#plot_contour(X,Y,p,0)
-#plot_contour(X,Y,psi,0)
+psi[:,:,0] = poisson(-w[:,:,0],nx,ny,dx,dy)
 
 # Main time-loop
 for t in range (0,it_max):	
-        # Computes derivatives	
-        dwdx=ddx(w[:,:,t],nx,ny,dx)
-        dwdy=ddy(w[:,:,t],nx,ny,dy)
-        d2wdx2=d2dx2(w[:,:,t],nx,ny,dx)
-        d2wdy2=d2dy2(w[:,:,t],nx,ny,dy)
+ 
+       # Computes derivatives	
+        dwdx=ddx(w[1:-1,1:-1,t],nx-2,ny-2,dx)
+        dwdy=ddy(w[1:-1,1:-1,t],nx-2,ny-2,dy)
+        d2wdx2=d2dx2(w[1:-1,1:-1,t],nx-2,ny-2,dx)
+        d2wdy2=d2dy2(w[1:-1,1:-1,t],nx-2,ny-2,dy)
         
         # Computes vorticity
-        w[:,:,t+1]=(-u[:,:,t]*dwdx-v[:,:,t]*dwdy+nu*(d2wdx2+d2wdy2))*dt+w[:,:,t]
+        w[1:-1,1:-1,t+1]=(-u[1:-1,1:-1,t]*dwdx-v[1:-1,1:-1,t]*dwdy+nu*(d2wdx2+d2wdy2))*dt+w[1:-1,1:-1,t]
         
         # Solves poisson equation for stream function
-        psi[:,:,t+1] = poisson_equation(-w[:,:,t+1],nx,ny,dx,dy)
+        psi[:,:,t+1] = poisson(-w[:,:,t+1],nx,ny,dx,dy)
         
         # Computes velocities
         dpsidx=ddx(psi[:,:,t+1],nx,ny,dx)
         dpsidy=ddy(psi[:,:,t+1],nx,ny,dy)
-        u[:,:,t+1]=dpsidy
-        v[:,:,t+1]=-dpsidx
-        
-#        boundary_conditions(u[:,:,t+1],u1,u2,u3,u4,nx,ny)
-#        boundary_conditions(v[:,:,t+1],v1,v2,v3,v4,nx,ny)
-#        w[:,:,t+1] = vort(u[:,:,t+1],v[:,:,t+1],nx,ny,dx,dy)
-#        psi[:,:,t+1] = poisson_equation(-w[:,:,t+1],nx,ny,dx,dy)
-        
+        u[1:-1,1:-1,t+1]=dpsidy[1:-1,1:-1]
+        v[1:-1,1:-1,t+1]=-dpsidx[1:-1,1:-1]
+
         # Computes pressure
-        f[:,:,t+1] = lhs(u[:,:,t+1],v[:,:,t+1],nx,ny,dx,dy)
-        p[:,:,t+1] = poisson_equation(f[:,:,t+1],nx,ny,dx,dy)
+        dudx = ddx(u[:,:,t+1],nx,ny,dx)
+        dudy = ddy(u[:,:,t+1],nx,ny,dy)
+        dvdx = ddx(v[:,:,t+1],nx,ny,dx)      
+        dvdy = ddy(v[:,:,t+1],nx,ny,dy)
+        f = dudx**2+dvdy**2+2*dudy*dvdx
+        p[:,:,t+1] = poisson(-f,nx,ny,dx,dy)
+            
+#        fig, ax = plt.subplots(figsize=(7,7))
+#        ax.quiver(X,Y,u[:,:,t],v[:,:,t], cmap='gist_rainbow_r', alpha=0.8)
+#        ax.xaxis.set_ticks([])
+#        ax.yaxis.set_ticks([])
+#        ax.set_aspect('equal')
+
+        fig, ax = plt.subplots(figsize=(7,7))
+        plt.contourf(X, Y, psi[:,:,int(t)], 20, cmap='gist_rainbow_r')
+        plt.xlabel('X [m]')
+        plt.ylabel('Y [m]')
+        plt.gca().set_aspect('equal', adjustable='box')
+        plt.colorbar();
+
+        plt.savefig('figure-' + str(t) + '.png')
+        plt.close()
+
         
-plot_contour(X,Y,psi,it_max)
-plot_quiver(X,Y,u,v,it_max)
-plot_contour(X,Y,p,it_max)
+
+#plot_contour(X,Y,psi,it_max)
+#plot_quiver(X,Y,u,v,it_max)
+#plot_contour(X,Y,p,it_max)
+#plot_contour(X,Y,u,it_max)
+#plot_contour(X,Y,v,it_max)

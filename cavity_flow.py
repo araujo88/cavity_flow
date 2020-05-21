@@ -26,7 +26,7 @@ def plot_quiver(X,Y,u,v,t):
     ax.xaxis.set_ticks([])
     ax.yaxis.set_ticks([])
     ax.set_aspect('equal')
-    plt.show()
+    plt.show()    
 
 ##############################################################################
 
@@ -41,7 +41,7 @@ ny = 20 # number of points in y direction
 dt = 0.02 # time step
 tf = 10 # final time
 max_co = 1 # max Courant number
-order = 2 # finite difference order for spatial derivatives
+order = 4 # finite difference order for spatial derivatives
 
 # Boundary conditions (Dirichlet)
 u0=0; # internal field for u
@@ -67,14 +67,13 @@ dx = x[1]-x[0];
 dy = y[1]-y[0];
 
 # Generates derivatives operators
-
 d_x = Diff1(nx,order)/dx
 d_y = Diff1(ny,order)/dy
 d_x2 = Diff2(nx, order)/dx**2
 d_y2 = Diff2(ny, order)/dy**2
 
 I = np.eye(nx,ny) # identity matrix
-DX = sparse.kron(d_x,I) # kronecker product
+DX = sparse.kron(d_x,I) # kronecker product for sparse matrix
 DY = sparse.kron(I,d_y)
 DX2 = sparse.kron(d_x2,I)
 DY2 = sparse.kron(I,d_y2)
@@ -90,27 +89,27 @@ if (r1 > max_co or r2 > max_co):
 	raise TypeError('Unstable Solution!')
 
 # Initialize variables
-u = np.zeros((nx,ny,int(tf/dt))) # x-velocity
-v = np.zeros((nx,ny,int(tf/dt))) # y-velocity
-w = np.zeros((nx,ny,int(tf/dt))) # vorticity
-psi = np.zeros((nx,ny,int(tf/dt))) # stream-function
-p = np.zeros((nx,ny,int(tf/dt))) # pressure
-dwdx = np.zeros((nx,ny,int(tf/dt)))
-dwdy = np.zeros((nx,ny,int(tf/dt)))
-d2wdx2 = np.zeros((nx,ny,int(tf/dt)))
-d2wdy2 = np.zeros((nx,ny,int(tf/dt)))
-dpsidx = np.zeros((nx,ny,int(tf/dt)))
-dpsidy = np.zeros((nx,ny,int(tf/dt)))
-dudx = np.zeros((nx,ny,int(tf/dt)))
-dudy = np.zeros((nx,ny,int(tf/dt)))
-dvdx = np.zeros((nx,ny,int(tf/dt))) 
-dvdy = np.zeros((nx,ny,int(tf/dt)))
+u = np.zeros((nx,ny)) # x-velocity
+v = np.zeros((nx,ny)) # y-velocity
+w = np.zeros((nx,ny)) # vorticity
+psi = np.zeros((nx,ny)) # stream-function
+p = np.zeros((nx,ny)) # pressure
+dwdx = np.zeros((nx,ny))
+dwdy = np.zeros((nx,ny))
+d2wdx2 = np.zeros((nx,ny))
+d2wdy2 = np.zeros((nx,ny))
+dpsidx = np.zeros((nx,ny))
+dpsidy = np.zeros((nx,ny))
+dudx = np.zeros((nx,ny))
+dudy = np.zeros((nx,ny))
+dvdx = np.zeros((nx,ny)) 
+dvdy = np.zeros((nx,ny))
 
 # Initial condition
 for i in range(0,nx-1):
     for j in range(1,ny-1):
-        u[i,j,0] = u0
-        v[i,j,0] = v0
+        u[i,j] = u0
+        v[i,j] = v0
 
 #dx2_dy2 = inv(DX2+DY2)
 #psi[:,:,0] = np.reshape(dx2_dy2 @ np.reshape(-w[:,:,0],(nx*ny,1)),(nx,ny))
@@ -120,66 +119,66 @@ for i in range(0,nx-1):
 for t in range (0,it_max):
 	# Boundary conditions
 	for j in range(0,ny):
-		u[0,j,t]=u3
-		u[nx-1,j,t]=u4
-		v[0,j,t]=v3
-		v[nx-1,j,t]=v4
+		u[0,j]=u3
+		u[nx-1,j]=u4
+		v[0,j]=v3
+		v[nx-1,j]=v4
 	for i in range(0,nx):
-		u[i,0,t]=u1
-		u[i,ny-1,t]=u2
-		v[i,0,t]=v1
-		v[i,ny-1,t]=v2
-	dudy[:,:,t] = np.reshape(DY @ np.reshape(u[:,:,t],(nx*ny,1)),(nx,ny))
-	dvdx[:,:,t] = np.reshape(DX @ np.reshape(v[:,:,t],(nx*ny,1)),(nx,ny))
+		u[i,0]=u1
+		u[i,ny-1]=u2
+		v[i,0]=v1
+		v[i,ny-1]=v2
+	dudy = np.reshape(DY @ np.reshape(u,(nx*ny,1)),(nx,ny))
+	dvdx = np.reshape(DX @ np.reshape(v,(nx*ny,1)),(nx,ny))
 	for j in range(0,ny):
-		w[0,j,t]=dvdx[0,j,t]-dudy[0,j,t]
-		w[nx-1,j,t]=dvdx[nx-1,j,t]-dudy[nx-1,j,t]
+		w[0,j]=dvdx[0,j]-dudy[0,j]
+		w[nx-1,j]=dvdx[nx-1,j]-dudy[nx-1,j]
 	for i in range(0,nx):
-		w[i,0,t]=dvdx[i,0,t]-dudy[i,0,t]
-		w[i,ny-1,t]=dvdx[i,ny-1,t]-dudy[i,ny-1,t]
-	psi[:,:,t] = fft_poisson(-w[:,:,t],dx)
+		w[i,0]=dvdx[i,0]-dudy[i,0]
+		w[i,ny-1]=dvdx[i,ny-1]-dudy[i,ny-1]
+	psi = fft_poisson(-w,dx)
 
        # Computes derivatives	
-	dwdx[:,:,t]=np.reshape(DX @ np.reshape(w[:,:,t],(nx*ny,1)),(nx,ny))
-	dwdy[:,:,t]=np.reshape(DY @ np.reshape(w[:,:,t],(nx*ny,1)),(nx,ny))
-	d2wdx2[:,:,t]=np.reshape(DX2 @ np.reshape(w[:,:,t],(nx*ny,1)),(nx,ny))
-	d2wdy2[:,:,t]=np.reshape(DY2 @ np.reshape(w[:,:,t],(nx*ny,1)),(nx,ny))
+	dwdx = np.reshape(DX @ np.reshape(w,(nx*ny,1)),(nx,ny))
+	dwdy = np.reshape(DY @ np.reshape(w,(nx*ny,1)),(nx,ny))
+	d2wdx2 = np.reshape(DX2 @ np.reshape(w,(nx*ny,1)),(nx,ny))
+	d2wdy2 =np.reshape(DY2 @ np.reshape(w,(nx*ny,1)),(nx,ny))
         
-        # Computes vorticity
-	w[:,:,t+1]=(-u[:,:,t]*dwdx[:,:,t]-v[:,:,t]*dwdy[:,:,t]+(1/Re)*(d2wdx2[:,:,t]+d2wdy2[:,:,t]))*dt+w[:,:,t]
+        # Time-advancement (Euler)
+	w=(-u*dwdx-v*dwdy+(1/Re)*(d2wdx2+d2wdy2))*dt+w
 
         # Solves poisson equation for stream function
-	psi[:,:,t+1] = fft_poisson(-w[:,:,t+1],dx)
+	psi = fft_poisson(-w,dx)
         
         # Computes velocities
-	dpsidx[:,:,t+1] = np.reshape(DX @ np.reshape(psi[:,:,t+1],(nx*ny,1)),(nx,ny))
-	dpsidy[:,:,t+1] = np.reshape(DY @ np.reshape(psi[:,:,t+1],(nx*ny,1)),(nx,ny))
-	u[:,:,t+1] = dpsidy[:,:,t+1]
-	v[:,:,t+1] = -dpsidx[:,:,t+1]
+	dpsidx = np.reshape(DX @ np.reshape(psi,(nx*ny,1)),(nx,ny))
+	dpsidy = np.reshape(DY @ np.reshape(psi,(nx*ny,1)),(nx,ny))
+	u = dpsidy
+	v = -dpsidx
 
 	# Checks continuity equation
-	dudx[:,:,t+1] = np.reshape(DX @ np.reshape(u[:,:,t+1],(nx*ny,1)),(nx,ny))
-	dvdy[:,:,t+1] = np.reshape(DY @ np.reshape(v[:,:,t+1],(nx*ny,1)),(nx,ny))
-	continuity = dudx[:,:,t+1]+dvdy[:,:,t+1]
+	dudx = np.reshape(DX @ np.reshape(u,(nx*ny,1)),(nx,ny))
+	dvdy = np.reshape(DY @ np.reshape(v,(nx*ny,1)),(nx,ny))
+	continuity = dudx+dvdy
 	print('Iteration: ' + str(t))
 	print('Continuity max: ' + str(continuity.max()) + ' Continuity min: ' + str(continuity.min()))
 	
         # Computes pressure
-#	dudx = np.reshape(DX @ np.reshape(u[:,:,t+1],(nx*ny,1)),(nx,ny))
-#	dudy = np.reshape(DY @ np.reshape(u[:,:,t+1],(nx*ny,1)),(nx,ny))
-#	dvdx = np.reshape(DX @ np.reshape(v[:,:,t+1],(nx*ny,1)),(nx,ny))
-#	dvdy = np.reshape(DY @ np.reshape(v[:,:,t+1],(nx*ny,1)),(nx,ny))
+#	dudx = np.reshape(DX @ np.reshape(u,(nx*ny,1)),(nx,ny))
+#	dudy = np.reshape(DY @ np.reshape(u,(nx*ny,1)),(nx,ny))
+#	dvdx = np.reshape(DX @ np.reshape(v,(nx*ny,1)),(nx,ny))
+#	dvdy = np.reshape(DY @ np.reshape(v,(nx*ny,1)),(nx,ny))
 #	f = dudx**2+dvdy**2+2*dudy*dvdx
-#	p[:,:,t+1] = fft_poisson(-f,dx)
+#	p = fft_poisson(-f,dx)
             
 #        fig, ax = plt.subplots(figsize=(7,7))
-#        ax.quiver(X,Y,u[:,:,t],v[:,:,t], cmap='gist_rainbow_r', alpha=0.8)
+#        ax.quiver(X,Y,u,v, cmap='gist_rainbow_r', alpha=0.8)
 #        ax.xaxis.set_ticks([])
 #        ax.yaxis.set_ticks([])
 #        ax.set_aspect('equal')
 
 	fig, ax = plt.subplots(figsize=(7,7))
-	plt.contourf(X, Y, psi[:,:,t], 40, cmap='gist_rainbow_r')
+	plt.contourf(X, Y, psi, 40, cmap='gist_rainbow_r')
 	plt.xlabel('X')
 	plt.ylabel('Y')
 	plt.gca().set_aspect('equal', adjustable='box')
